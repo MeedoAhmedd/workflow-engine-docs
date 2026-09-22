@@ -1,0 +1,1789 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mini Workflow Engine Docs</title>
+<meta name="description" content="Documentation for a mini workflow engine: define states and transitions, run instances, and move them through allowed actions.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>:root{color-scheme:light dark}body{margin:0}</style>
+</head>
+<body>
+
+<!-- Read Aloud Engine: a separate, standalone project (see section 10
+     below) — this page only consumes it as an external dependency. -->
+<script src="read-aloud-engine.js"></script>
+<script src="read-aloud-voice-picker.js"></script>
+
+<!-- Arthur: a separate, standalone chat-widget project (see section 11
+     below) — this page only consumes it as an external dependency. -->
+<script src="arthur.js"></script>
+<script src="arthur-widget.js"></script>
+<link rel="stylesheet" href="arthur-widget.css">
+
+<style>
+  :root {
+    --bg: #f5f5f2;
+    --surface: #ffffff;
+    --surface-raised: #fbfbf9;
+    --ink: #1c1e21;
+    --ink-soft: #3a3d42;
+    --muted: #6b7075;
+    --border: #e2e2dd;
+    --border-strong: #cfcfc8;
+    --accent: #3d5a80;
+    --accent-soft: #eef2f6;
+    --accent-strong: #2c4360;
+    --code-bg: #fafaf8;
+    --good: #3f7d52;
+    --good-soft: #eaf4ec;
+    --warn: #a4690e;
+    --warn-soft: #fbf1e3;
+    --shadow: 0 1px 2px rgba(28,30,33,0.06), 0 4px 16px rgba(28,30,33,0.04);
+    --radius: 12px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16181b;
+      --surface: #1d2023;
+      --surface-raised: #22262a;
+      --ink: #e8e9ea;
+      --ink-soft: #c7c9cc;
+      --muted: #8a9098;
+      --border: #2c3034;
+      --border-strong: #3a3f44;
+      --accent: #7ea2c9;
+      --accent-soft: #223140;
+      --accent-strong: #a9c4e0;
+      --code-bg: #1a1d20;
+      --good: #7bc794;
+      --good-soft: #1c2b21;
+      --warn: #e0ac5f;
+      --warn-soft: #2e2417;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 4px 20px rgba(0,0,0,0.25);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #16181b;
+    --surface: #1d2023;
+    --surface-raised: #22262a;
+    --ink: #e8e9ea;
+    --ink-soft: #c7c9cc;
+    --muted: #8a9098;
+    --border: #2c3034;
+    --border-strong: #3a3f44;
+    --accent: #7ea2c9;
+    --accent-soft: #223140;
+    --accent-strong: #a9c4e0;
+    --code-bg: #1a1d20;
+    --good: #7bc794;
+    --good-soft: #1c2b21;
+    --warn: #e0ac5f;
+    --warn-soft: #2e2417;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    line-height: 1.6;
+  }
+
+  a { color: var(--accent); }
+
+  code, .mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .shell {
+    display: flex;
+    max-width: 1320px;
+    margin: 0 auto;
+    align-items: flex-start;
+  }
+
+  /* TOC sidebar */
+  .toc {
+    width: 250px;
+    flex-shrink: 0;
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    max-height: 100vh;
+    overflow-y: auto;
+    padding: 28px 16px 32px;
+    border-right: 1px solid var(--border);
+  }
+
+  .toc-brand {
+    padding: 0 8px 18px;
+  }
+
+  .toc-brand .kicker {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .toc-brand .title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-top: 4px;
+    letter-spacing: -0.01em;
+  }
+
+  .toc-link-out {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+    padding: 6px 8px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--border-strong);
+    border-radius: 7px;
+    text-decoration: none;
+    color: var(--ink-soft);
+  }
+
+  .toc-link-out:hover { border-color: var(--accent); color: var(--accent); }
+
+  .toc nav a {
+    display: block;
+    padding: 6px 8px;
+    font-size: 13px;
+    color: var(--ink-soft);
+    text-decoration: none;
+    border-radius: 6px;
+    border-left: 2px solid transparent;
+  }
+
+  .toc nav a:hover { background: var(--surface-raised); color: var(--ink); }
+  .toc nav a.active { color: var(--accent); border-left-color: var(--accent); font-weight: 600; background: var(--accent-soft); }
+
+  .toc .toc-section-label {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    padding: 14px 8px 4px;
+  }
+
+  .theme-toggle {
+    margin: 16px 8px 4px;
+    display: flex;
+    gap: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 3px;
+  }
+
+  .theme-toggle button {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 11.5px;
+    padding: 5px 0;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .theme-toggle button.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* Main content */
+  .main {
+    flex: 1;
+    min-width: 0;
+    padding: 40px 40px 100px;
+    max-width: 880px;
+  }
+
+  .hero {
+    margin-bottom: 40px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .hero .kicker {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .hero h1 {
+    font-size: 34px;
+    margin: 8px 0 12px;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  .hero .dek {
+    font-size: 16px;
+    color: var(--ink-soft);
+    max-width: 62ch;
+    margin: 0;
+  }
+
+  section.doc-section {
+    margin-bottom: 56px;
+    scroll-margin-top: 20px;
+  }
+
+  section.doc-section h2 {
+    font-size: 22px;
+    margin: 0 0 6px;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .section-speak-btn {
+    margin-left: auto;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 11px;
+    font-size: 11.5px;
+    font-weight: 500;
+    font-family: 'Inter', sans-serif;
+    letter-spacing: 0;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--ink-soft);
+    border-radius: 7px;
+    cursor: pointer;
+  }
+
+  .section-speak-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .section-speak-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .section-speak-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .section-speak-btn.speaking {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .section-speak-btn .icon-stop { display: none; }
+  .section-speak-btn.speaking .icon-play { display: none; }
+  .section-speak-btn.speaking .icon-stop { display: inline-flex; }
+
+  /* highlights the paragraph/list-item currently being read within a section */
+  .doc-chunk-active {
+    background: var(--accent-soft);
+    border-radius: 6px;
+    outline: 2px solid var(--accent-soft);
+  }
+
+  .voice-picker {
+    position: fixed;
+    z-index: 30;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    padding: 6px;
+    min-width: 220px;
+    max-height: 260px;
+    overflow-y: auto;
+    display: none;
+    font-size: 12.5px;
+  }
+
+  .voice-picker.open,
+  .voice-picker[style*="block"] { display: block; }
+
+  .voice-picker button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 8px 10px;
+    font-size: 12.5px;
+    font-family: 'Inter', sans-serif;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+
+  .voice-picker button:hover { background: var(--surface-raised); color: var(--ink); }
+  .voice-picker button[data-selected="true"] { color: var(--accent); font-weight: 600; background: var(--accent-soft); }
+
+  section.doc-section h2 .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  section.doc-section > .section-dek {
+    color: var(--muted);
+    font-size: 14.5px;
+    margin: 0 0 22px;
+    max-width: 62ch;
+  }
+
+  h3 {
+    font-size: 17px;
+    margin: 30px 0 4px;
+    letter-spacing: -0.005em;
+  }
+
+  p { margin: 0 0 14px; color: var(--ink-soft); font-size: 15px; }
+
+  .lede {
+    font-size: 16px;
+    color: var(--ink);
+  }
+
+  .callout {
+    background: var(--accent-soft);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 18px 0;
+    font-size: 14px;
+    color: var(--ink-soft);
+  }
+
+  .callout strong { color: var(--ink); }
+
+  /* Diagram */
+  .diagram-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: var(--shadow);
+    margin: 20px 0;
+  }
+
+  .diagram-wrap svg { width: 100%; height: auto; display: block; }
+  .diagram-wrap figcaption {
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  /* file-explanation entries: name then description, per explicit request */
+  .file-entry {
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .file-entry:last-child { border-bottom: none; }
+
+  .file-entry .file-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14.5px;
+    font-weight: 600;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .file-entry .file-name .pkg-tag {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 2px 7px;
+    border-radius: 5px;
+  }
+
+  .file-entry p {
+    margin: 6px 0 0;
+    font-size: 14px;
+  }
+
+  .phase-group {
+    margin-bottom: 34px;
+  }
+
+  .phase-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .phase-speak-btn {
+    margin-left: auto;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 500;
+    font-family: 'Inter', sans-serif;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--muted);
+    border-radius: 999px;
+    cursor: pointer;
+  }
+
+  .phase-speak-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .phase-speak-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .phase-speak-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .phase-speak-btn.speaking {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .phase-speak-btn .icon-stop { display: none; }
+  .phase-speak-btn.speaking .icon-play { display: none; }
+  .phase-speak-btn.speaking .icon-stop { display: inline-flex; }
+
+  .phase-badge {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    flex-shrink: 0;
+  }
+
+  .phase-title { font-size: 16px; font-weight: 700; }
+
+  .phase-chain {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    margin: 0 0 14px 36px;
+    overflow-wrap: anywhere;
+  }
+
+  .file-list { margin-left: 36px; }
+
+  /* Limitations table */
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin: 18px 0;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 640px;
+    background: var(--surface);
+    font-size: 13.5px;
+  }
+
+  th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    background: var(--surface-raised);
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+    color: var(--ink-soft);
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  td.gap-name { color: var(--ink); font-weight: 600; white-space: nowrap; }
+
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  .status-pill.done { background: var(--good-soft); color: var(--good); }
+  .status-pill.open { background: var(--warn-soft); color: var(--warn); }
+
+  /* Priority order list */
+  .priority-list {
+    list-style: none;
+    margin: 18px 0;
+    padding: 0;
+    counter-reset: priority;
+  }
+
+  .priority-list li {
+    counter-increment: priority;
+    display: flex;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .priority-list li:last-child { border-bottom: none; }
+
+  .priority-list li::before {
+    content: counter(priority);
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--accent);
+    background: var(--accent-soft);
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .priority-list .priority-title { font-weight: 600; color: var(--ink); font-size: 14.5px; }
+  .priority-list p { margin: 3px 0 0; font-size: 13.5px; }
+
+  /* Q&A log */
+  .qa-item {
+    margin-bottom: 26px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+
+  .qa-question {
+    padding: 14px 18px;
+    background: var(--accent-soft);
+    font-weight: 600;
+    font-size: 14.5px;
+    color: var(--ink);
+    display: flex;
+    gap: 10px;
+  }
+
+  .qa-question .q-mark {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .qa-answer {
+    padding: 16px 18px;
+    font-size: 14px;
+  }
+
+  .qa-answer p:last-child { margin-bottom: 0; }
+
+  .qa-source {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  /* Applying elsewhere cards */
+  .apply-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+    margin: 18px 0;
+  }
+
+  .apply-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    box-shadow: var(--shadow);
+  }
+
+  .apply-card .apply-domain {
+    font-weight: 700;
+    font-size: 14.5px;
+    margin-bottom: 6px;
+  }
+
+  .apply-card .apply-states {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 6px 8px;
+    border-radius: 6px;
+    display: block;
+    margin-bottom: 8px;
+    overflow-wrap: anywhere;
+    line-height: 1.5;
+  }
+
+  .apply-card p { font-size: 13px; margin: 0; }
+
+  .contract-box {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 22px;
+    margin: 18px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.9;
+    color: var(--ink-soft);
+    box-shadow: var(--shadow);
+  }
+
+  .contract-box .arrow { color: var(--accent); font-weight: 600; }
+
+  .back-to-top {
+    position: fixed;
+    bottom: max(20px, env(safe-area-inset-bottom, 0px));
+    right: 20px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    border: none;
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .back-to-top.visible { display: flex; }
+
+  /* Recolors the Arthur widget (a separate project's default styles)
+     to match this page's own accent token, so it doesn't look like a
+     bolted-on third-party color scheme. Pure recoloring — no layout
+     or behavior overrides, so an update to arthur-widget.css upstream
+     stays compatible with these rules. */
+  .arthur-launcher,
+  .arthur-panel-header,
+  .arthur-message-user .arthur-bubble,
+  .arthur-send {
+    background: var(--accent) !important;
+  }
+  .arthur-input:focus { outline-color: var(--accent) !important; }
+  .arthur-action-btn:hover,
+  .arthur-jump-btn,
+  .arthur-speak-btn.speaking { color: var(--accent) !important; }
+  .arthur-speak-btn.speaking { border-color: var(--accent) !important; background: var(--accent-soft) !important; }
+  .arthur-panel {
+    background: var(--surface) !important;
+    box-shadow: var(--shadow) !important;
+  }
+  .arthur-messages { background: var(--bg) !important; }
+  .arthur-message-bot .arthur-bubble {
+    background: var(--surface) !important;
+    color: var(--ink) !important;
+    border-color: var(--border) !important;
+  }
+  .arthur-input-row { background: var(--surface) !important; border-color: var(--border) !important; }
+  .arthur-input { background: var(--surface-raised) !important; border-color: var(--border) !important; color: var(--ink) !important; }
+  .arthur-action-btn { background: var(--surface) !important; border-color: var(--border-strong) !important; color: var(--muted) !important; }
+  .arthur-source-highlight { background: var(--accent-soft) !important; }
+
+  /* Let's Connect */
+  .connect-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+    margin: 18px 0;
+  }
+
+  .connect-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .connect-card:hover {
+    border-color: var(--accent);
+  }
+
+  .connect-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .connect-title {
+    font-weight: 700;
+    font-size: 14.5px;
+    color: var(--ink);
+  }
+
+  .connect-sub {
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-top: 2px;
+    word-break: break-word;
+  }
+
+  .toc-toggle { display: none; }
+
+  @media (max-width: 900px) {
+    .shell { flex-direction: column; }
+
+    .toc-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 14px 16px;
+      background: var(--surface);
+      border: none;
+      border-bottom: 1px solid var(--border);
+      color: var(--ink);
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      position: sticky;
+      top: env(safe-area-inset-top, 0px);
+      z-index: 5;
+    }
+
+    .toc {
+      position: static;
+      width: 100%;
+      max-height: none;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+      display: none;
+    }
+
+    .toc.open { display: block; }
+
+    .main { padding: 24px 18px 80px; max-width: 100%; }
+    .hero h1 { font-size: 26px; }
+    .phase-chain, .file-list { margin-left: 0; }
+  }
+</style>
+
+<div class="shell">
+  <button class="toc-toggle" id="tocToggle" aria-expanded="false" aria-controls="tocNav">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    Contents
+  </button>
+
+  <aside class="toc" id="tocNav">
+    <div class="toc-brand">
+      <div class="kicker">Documentation</div>
+      <div class="title">Mini Workflow Engine</div>
+      <a class="toc-link-out" href="#lets-connect">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        Request source access
+      </a>
+    </div>
+
+    <div class="theme-toggle" role="group" aria-label="Theme">
+      <button data-theme-choice="light">Light</button>
+      <button data-theme-choice="dark">Dark</button>
+      <button data-theme-choice="system" class="active">System</button>
+    </div>
+
+    <nav id="tocList">
+      <div class="toc-section-label">Concept</div>
+      <a href="#overview">Overview</a>
+      <a href="#lifecycle">Request lifecycle</a>
+      <a href="#real-world">Real-world example</a>
+      <a href="#why-engine">Why an engine</a>
+
+      <div class="toc-section-label">Reading path</div>
+      <a href="#path-1">1. Defining a workflow</a>
+      <a href="#path-2">2. Running an instance</a>
+      <a href="#path-3">3. Guards &amp; roles</a>
+      <a href="#path-4">4. History &amp; events</a>
+
+      <div class="toc-section-label">Status</div>
+      <a href="#limitations">Known limitations</a>
+      <a href="#priorities">Fix order</a>
+      <a href="#applying">Applying it elsewhere</a>
+
+      <div class="toc-section-label">Reference</div>
+      <a href="#qa-log">Questions asked</a>
+      <a href="#read-aloud-engine">Read Aloud Engine</a>
+      <a href="#arthur-engine">Arthur (chat)</a>
+      <a href="#lets-connect">Let's Connect</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <div class="hero">
+      <div class="kicker">Mini Workflow Engine · Working notes</div>
+      <h1>How this engine works, and what's left</h1>
+      <p class="dek">A single reference for the concept, the four-part reading path through the code, the current gaps and how to close them, and the questions that shaped this design.</p>
+    </div>
+
+    <!-- OVERVIEW -->
+    <section class="doc-section" id="overview">
+      <h2><span class="num">01</span> The core idea</h2>
+      <p class="lede">The engine does not invent a workflow or decide that a process needs another step. The person or application setting up a process supplies the states and transitions. The backend stores those rules, then applies them when actions arrive.</p>
+      <p>The codebase splits that job into five layers, each with one responsibility:</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Layer</th><th>Job</th></tr></thead>
+          <tbody>
+            <tr><td class="gap-name">Controller</td><td>Receives an HTTP request and reads its URL, headers, and JSON body.</td></tr>
+            <tr><td class="gap-name">DTOs</td><td>Define the shape of that JSON input and output.</td></tr>
+            <tr><td class="gap-name">Service</td><td>Applies the rules: create an instance, find an allowed transition, update the state.</td></tr>
+            <tr><td class="gap-name">Model / entity</td><td>Represents definitions, states, transitions, instances, and related records in Java.</td></tr>
+            <tr><td class="gap-name">Repository</td><td>Reads and saves those records in the database.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>In <code>WorkflowEngineController</code>, this call is the hinge point of the whole system:</p>
+      <div class="contract-box">workflowInstanceService.executeAction(<br>&nbsp;&nbsp;instanceId,<br>&nbsp;&nbsp;request.getAction(),<br>&nbsp;&nbsp;ownerId,<br>&nbsp;&nbsp;request.getData(),<br>&nbsp;&nbsp;callerRole<br>);</div>
+      <p>The controller has received an action from another application. It hands that action to the service, which answers the real question: given this instance's current state, is there a transition for this action? If so, the instance moves to that transition's destination state.</p>
+
+      <div class="callout"><strong>The engine knows nothing about your business.</strong> It doesn't know what "recruiter," "admin," or "approved" mean. Those are rules the integrating application supplies as a workflow definition. A future visual workflow builder would just be a frontend that lets a person draw states and arrows, then sends the resulting definition to this same backend.</div>
+    </section>
+
+    <!-- LIFECYCLE DIAGRAM -->
+    <section class="doc-section" id="lifecycle">
+      <h2><span class="num">02</span> The request lifecycle</h2>
+      <p class="section-dek">One workflow is set up once. Every subsequent action re-enters the same loop: check, move, record.</p>
+
+      <div class="diagram-wrap">
+        <figure style="margin:0;">
+          <svg viewBox="0 0 920 580" role="img" aria-label="Diagram: a workflow is created and saved once, then each instance action checks whether the transition is allowed from the current state. If allowed, it moves to the next state, records the result, and returns the instance as JSON, looping back for the next action. If not allowed, it returns an error.">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+              </marker>
+            </defs>
+
+            <!-- Setup phase (three boxes, run once) -->
+            <text x="30" y="14" font-family="Inter, sans-serif" font-size="11" fill="currentColor" opacity="0.7">once, per workflow / instance</text>
+
+            <rect x="30" y="24" width="230" height="56" rx="10" fill="currentColor" fill-opacity="0.07" stroke="currentColor" stroke-width="1.5"/>
+            <text x="145" y="47" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" fill="currentColor">Create workflow</text>
+            <text x="145" y="64" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" fill="currentColor">template</text>
+
+            <line x1="145" y1="80" x2="145" y2="108" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+            <rect x="30" y="112" width="230" height="56" rx="10" fill="currentColor" fill-opacity="0.07" stroke="currentColor" stroke-width="1.5"/>
+            <text x="145" y="135" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" fill="currentColor">Save states and</text>
+            <text x="145" y="152" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" fill="currentColor">allowed transitions</text>
+
+            <line x1="145" y1="168" x2="145" y2="196" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+            <rect x="30" y="200" width="230" height="56" rx="10" fill="currentColor" fill-opacity="0.07" stroke="currentColor" stroke-width="1.5"/>
+            <text x="145" y="223" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" fill="currentColor">Create instance at</text>
+            <text x="145" y="240" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" fill="currentColor">initial state</text>
+
+            <!-- Send action: entry point of the repeating loop -->
+            <line x1="145" y1="256" x2="145" y2="296" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+            <rect x="30" y="300" width="230" height="56" rx="10" fill="currentColor" fill-opacity="0.12" stroke="currentColor" stroke-width="1.5"/>
+            <text x="145" y="333" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" fill="currentColor" font-weight="600">Send an action</text>
+
+            <line x1="145" y1="356" x2="145" y2="388" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+            <!-- Decision box -->
+            <rect x="30" y="392" width="230" height="66" rx="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 3"/>
+            <text x="145" y="418" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" fill="currentColor">Action allowed from</text>
+            <text x="145" y="435" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" fill="currentColor">current state?</text>
+
+            <!-- No branch: straight down to error -->
+            <line x1="145" y1="458" x2="145" y2="486" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
+            <text x="163" y="476" font-family="Inter, sans-serif" font-size="11" fill="currentColor" opacity="0.75">no</text>
+
+            <rect x="30" y="490" width="230" height="50" rx="10" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <text x="145" y="520" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" fill="currentColor">Return an error</text>
+
+            <!-- Yes branch: right, into move + record -->
+            <line x1="260" y1="425" x2="436" y2="425" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+            <text x="330" y="415" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="currentColor" opacity="0.75">yes</text>
+
+            <rect x="440" y="397" width="260" height="56" rx="10" fill="currentColor" fill-opacity="0.07" stroke="currentColor" stroke-width="1.5"/>
+            <text x="570" y="420" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" fill="currentColor">Move to next state and</text>
+            <text x="570" y="437" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" fill="currentColor">record result</text>
+
+            <!-- Up to "return current instance as JSON" -->
+            <line x1="570" y1="397" x2="570" y2="176" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+            <rect x="440" y="112" width="260" height="56" rx="10" fill="currentColor" fill-opacity="0.07" stroke="currentColor" stroke-width="1.5"/>
+            <text x="570" y="135" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" fill="currentColor">Return current instance</text>
+            <text x="570" y="152" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" fill="currentColor">as JSON</text>
+
+            <!-- Loop back around to "Send an action" for the next call -->
+            <path d="M 700 140 L 800 140 L 800 328 L 264 328" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)"/>
+            <text x="812" y="234" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="currentColor" opacity="0.75" transform="rotate(90 812 234)">next action</text>
+          </svg>
+        </figure>
+        <figcaption>Setup runs once per workflow and instance. Every action after that re-enters the same check → move → record loop.</figcaption>
+      </div>
+
+      <p>The dashed box is the only place a decision gets made: <code>WorkflowEngineService</code> looks up whether a transition exists from the instance's current state for the given action. Everything above it in the diagram happens once; everything below the "send an action" box repeats for every action executed on that instance.</p>
+    </section>
+
+    <!-- REAL WORLD EXAMPLE -->
+    <section class="doc-section" id="real-world">
+      <h2><span class="num">03</span> A real deployment</h2>
+      <p class="section-dek">Using a recruiter-approval process as the example, hosted inside an application called GIU Nexus.</p>
+
+      <h3>Defining the workflow</h3>
+      <p>Someone defines the process before any recruiter is reviewed:</p>
+      <div class="contract-box">
+        States: &nbsp;PENDING <span class="arrow">→</span> LEVEL_1_APPROVED <span class="arrow">→</span> LEVEL_2_APPROVED <span class="arrow">→</span> APPROVED<br>
+        Actions: approve_1, approve_2, approve_3
+      </div>
+      <p>That definition is sent to <code>POST /workflows</code> as JSON. The backend validates it and saves it. Later, one instance is created per recruiter being reviewed.</p>
+
+      <h3>Running it</h3>
+      <ol style="color:var(--ink-soft); font-size:15px; padding-left:20px; margin:0 0 14px;">
+        <li>A head admin sets up the recruiter approval workflow once.</li>
+        <li>When a recruiter signs up, GIU Nexus creates a workflow instance for that recruiter.</li>
+        <li>An admin clicks <strong>Approve</strong> inside GIU Nexus.</li>
+        <li>GIU Nexus sends an action to the workflow engine.</li>
+        <li>The engine checks the current state and the allowed transition, saves the new state, and returns it.</li>
+        <li>GIU Nexus displays the updated approval status.</li>
+      </ol>
+      <p>GIU Nexus owns the screen and the business experience. The workflow engine owns state progression and its rules — nothing more.</p>
+    </section>
+
+    <!-- WHY AN ENGINE -->
+    <section class="doc-section" id="why-engine">
+      <h2><span class="num">04</span> Why use an engine at all</h2>
+      <p>It earns its keep once several processes need the same machinery. Job applications, recruiter approvals, leave requests, and support tickets all have different states, but they all ask the same four questions:</p>
+      <ul style="color:var(--ink-soft); font-size:15px; padding-left:20px; margin:0 0 14px;">
+        <li>What state is this item in?</li>
+        <li>Which action is allowed next?</li>
+        <li>Who is allowed to perform it?</li>
+        <li>What happened previously?</li>
+      </ul>
+      <p>Instead of writing a separate set of state-changing code for every process, an application defines each process once and lets the engine manage its progression.</p>
+      <div class="callout">One practical caution, straight from the controller code: <code>X-Owner-Id</code> and <code>X-Caller-Role</code> are values supplied in request headers. A real deployment needs a trusted way to establish identity and role before those values can be used for access control — see <a href="#limitations">Known limitations</a> below.</div>
+      <p style="font-weight:600; color:var(--ink);">In one sentence: an application defines the route, and the engine tracks each item as it moves along that route.</p>
+    </section>
+
+    <!-- READING PATH -->
+    <section class="doc-section" id="reading-path-intro">
+      <h2><span class="num">05</span> The reading path</h2>
+      <p class="section-dek">The 34 source files don't need to be read top to bottom. They read best in four phases, each following one request through the whole stack — input DTO, controller, service, model, repository.</p>
+    </section>
+
+    <section class="doc-section" id="path-1">
+      <div class="phase-group">
+        <div class="phase-header">
+          <div class="phase-badge">1</div>
+          <div class="phase-title">How a workflow is defined</div>
+        </div>
+        <div class="phase-chain">CreateWorkflowRequest → StateRequest &amp; TransitionRequest → WorkflowController → WorkflowService → WorkflowDefinition, State, Transition → their repositories</div>
+
+        <div class="file-list">
+          <div class="file-entry">
+            <div class="file-name">CreateWorkflowRequest <span class="pkg-tag">dto</span></div>
+            <p>Receives the JSON for the whole new workflow: its name, version, states, and transitions. It carries the input — it doesn't save anything itself.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">StateRequest <span class="pkg-tag">dto</span></div>
+            <p>Receives the details for one state in that JSON: its name, and whether it's the starting state.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">TransitionRequest <span class="pkg-tag">dto</span></div>
+            <p>Receives the details for one allowed move: the action, the state it starts from, the state it goes to, and optionally a guard condition or a required role.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">WorkflowController <span class="pkg-tag">controller</span></div>
+            <p>Receives the <code>POST /workflows</code> request. Takes the <code>CreateWorkflowRequest</code>, passes it to <code>WorkflowService</code>, and returns the result as JSON.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">WorkflowService <span class="pkg-tag">service</span></div>
+            <p>Does the creation work: checks every state and transition (exactly one initial state, no duplicate names, every transition's states exist, guard fields are all-or-nothing), then builds and saves the records.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">WorkflowDefinition <span class="pkg-tag">model</span></div>
+            <p>The saved workflow template. Represents the workflow as a whole, scoped to an owner, holding its list of states and transitions.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">State <span class="pkg-tag">model</span></div>
+            <p>A saved state belonging to that workflow definition, with a flag marking whether it's the entry point.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">Transition <span class="pkg-tag">model</span></div>
+            <p>A saved rule connecting two states through an action, with optional guard fields and an optional required role.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">WorkflowDefinitionRepository, StateRepository, TransitionRepository <span class="pkg-tag">repository</span></div>
+            <p>Provide the database operations used to save and look up those records — including owner-scoped lookups so one integrator can't read another's workflow.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc-section" id="path-2">
+      <div class="phase-group">
+        <div class="phase-header">
+          <div class="phase-badge">2</div>
+          <div class="phase-title">How an instance runs</div>
+        </div>
+        <div class="phase-chain">CreateWorkflowInstanceRequest / ExecuteActionRequest → WorkflowEngineController → WorkflowInstanceService → WorkflowEngineService → WorkflowInstance → WorkflowInstanceRepository</div>
+
+        <div class="file-list">
+          <div class="file-entry">
+            <div class="file-name">CreateWorkflowInstanceRequest <span class="pkg-tag">dto</span></div>
+            <p>Holds the JSON needed to start one instance: which workflow definition to use, an optional external reference ID, and optional initial data.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">ExecuteActionRequest <span class="pkg-tag">dto</span></div>
+            <p>Holds the action name and any data sent when someone tries to move an instance to another state.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">WorkflowEngineController <span class="pkg-tag">controller</span></div>
+            <p>Receives every <code>/workflow-instances</code> request: create, execute, read by ID, read by reference, history, and events. Translates HTTP into service calls and back into JSON — no business logic of its own.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">WorkflowInstanceService <span class="pkg-tag">service</span></div>
+            <p>Owns the life of an instance: finds the workflow and its initial state to create one, saves incoming data before evaluating a transition, asks <code>WorkflowEngineService</code> for the next state, then saves the new state, a history entry, and a transition event.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">WorkflowEngineService <span class="pkg-tag">service</span></div>
+            <p>The actual state-machine decision. Looks up every transition starting at the current state matching the action, picks the first whose guard holds, checks the required role, and returns the destination state — or throws if nothing matches.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">WorkflowInstance <span class="pkg-tag">model</span></div>
+            <p>Represents one real item going through a workflow: which definition it follows, which state it's currently in, its owner, and its external reference ID.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">WorkflowInstanceRepository <span class="pkg-tag">repository</span></div>
+            <p>Reads and saves instances, scoped by owner ID and lookup by external reference, so one integrator can never read or execute another's instance by guessing an ID.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc-section" id="path-3">
+      <div class="phase-group">
+        <div class="phase-header">
+          <div class="phase-badge">3</div>
+          <div class="phase-title">Guards and role checks</div>
+        </div>
+        <div class="phase-chain">GuardOperator → InstanceVariable → GuardEvaluator → Transition.requiredRole → ForbiddenActionException → GlobalExceptionHandler</div>
+
+        <div class="file-list">
+          <div class="file-entry">
+            <div class="file-name">GuardOperator <span class="pkg-tag">model</span></div>
+            <p>A fixed set of comparisons a guard can use: <code>EQUALS</code>, <code>NOT_EQUALS</code>, <code>GREATER_THAN</code>, <code>LESS_THAN</code>, and their "or equal" variants. Kept as a closed enum, never free-text, so a guard can never execute arbitrary code.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">InstanceVariable <span class="pkg-tag">model</span></div>
+            <p>One key/value pair of business data attached to an instance, e.g. <code>score = "85"</code>. Always stored as text; comparisons decide at evaluation time whether to treat it as a number.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">InstanceVariableRepository <span class="pkg-tag">repository</span></div>
+            <p>Reads every variable for an instance, and finds one by name so saving data updates the existing row instead of duplicating it.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">GuardEvaluator <span class="pkg-tag">service</span></div>
+            <p>Decides whether a transition's guard holds. An unguarded transition always matches. A guard whose variable is missing on the instance is treated as not matching, not as an error. Numeric values compare numerically; non-numeric values only support equals/not-equals.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">Transition.requiredRole <span class="pkg-tag">model</span></div>
+            <p>An optional field on a transition. When set, only a caller declaring that exact role via <code>X-Caller-Role</code> may execute it. A missing header is treated as "no role," not as "check skipped."</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">ForbiddenActionException <span class="pkg-tag">service</span></div>
+            <p>Thrown when a caller has the right owner ID but the wrong role for a specific transition — kept distinct from a malformed-request error so it maps to HTTP 403, not 400.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">GlobalExceptionHandler <span class="pkg-tag">controller</span></div>
+            <p>Catches exceptions thrown anywhere in the app and turns them into a structured JSON error response with the right HTTP status, instead of a generic server error.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc-section" id="path-4">
+      <div class="phase-group">
+        <div class="phase-header">
+          <div class="phase-badge">4</div>
+          <div class="phase-title">History and the event feed</div>
+        </div>
+        <div class="phase-chain">TransitionHistoryEntry / TransitionEvent → their repositories → WorkflowEngineController (history, events) → response DTOs</div>
+
+        <div class="file-list">
+          <div class="file-entry">
+            <div class="file-name">TransitionHistoryEntry <span class="pkg-tag">model</span></div>
+            <p>Records one executed transition on one instance — action, from-state, to-state, timestamp — as a permanent audit trail, stored as plain name strings so it stays readable even if the workflow definition later changes.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">TransitionHistoryEntryRepository <span class="pkg-tag">repository</span></div>
+            <p>Returns an instance's full history in the order it happened, oldest first.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">TransitionEvent <span class="pkg-tag">model</span></div>
+            <p>A system-wide record of a transition, scoped by owner rather than linked by relation, with a <code>dispatched</code> flag a future webhook worker could flip once it has actually notified someone. Nothing flips it today.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">TransitionEventRepository <span class="pkg-tag">repository</span></div>
+            <p>Returns every event for an owner across all of that owner's instances, oldest first — the activity feed a future dispatcher would poll.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">TransitionHistoryEntryResponse, TransitionEventResponse <span class="pkg-tag">dto</span></div>
+            <p>Define the JSON shape returned by <code>GET /workflow-instances/{id}/history</code> and <code>GET /events</code>.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">WorkflowDefinitionResponse, WorkflowInstanceResponse, ErrorResponse <span class="pkg-tag">dto</span></div>
+            <p>The remaining response shapes: a workflow's full states and transitions, an instance's current state and data, and the structured error body used by <code>GlobalExceptionHandler</code>.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">TestDataConfig <span class="pkg-tag">config</span></div>
+            <p>Seeds a demo "Job Application" workflow on startup, so there's something to call the API against without creating a workflow by hand first.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">MiniWorkflowEngineApplication <span class="pkg-tag">root</span></div>
+            <p>The Spring Boot entry point. Running its <code>main</code> method starts the embedded server and wires every <code>@Service</code>, <code>@Repository</code>, and <code>@RestController</code> together.</p>
+          </div>
+          <div class="file-entry">
+            <div class="file-name">MiniWorkflowEngineApplicationTests <span class="pkg-tag">test</span></div>
+            <p>A single smoke test confirming the Spring application context loads without error. Not a test of workflow behavior.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LIMITATIONS -->
+    <section class="doc-section" id="limitations">
+      <h2><span class="num">06</span> Known limitations</h2>
+      <p class="section-dek">A work in progress. This list can drift ahead of the actual code — for example, the controller already accepts <code>X-Caller-Role</code> and exposes <code>GET /events</code>, which doesn't by itself mean permissions or event delivery are finished. Verify each row against the current source before trusting it.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Gap</th><th>Why it matters</th><th>A simple fix</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="gap-name">No real authentication</td>
+              <td><code>X-Owner-Id</code> is self-declared, not verified. It isolates integrators' data from each other, but is not security against a malicious caller.</td>
+              <td>Verify a token or API key, then derive the owner ID from it — never trust a caller-supplied header directly. Essential before any real deployment.</td>
+            </tr>
+            <tr>
+              <td class="gap-name">No permissions / roles</td>
+              <td>Any caller with a valid owner ID can execute any action on any of that owner's instances.</td>
+              <td>Have the integrating app pass verified user/role information through a trusted integration, and check it against the transition's required role.</td>
+            </tr>
+            <tr>
+              <td class="gap-name">Guards exist, but are basic</td>
+              <td>Transitions can be blocked on data — but only with one flat comparison, not compound conditions.</td>
+              <td>Keep the guard set small and explicit (<code>score >= 70</code>, <code>documentsComplete == true</code>). Add compound conditions only once a real workflow needs them.</td>
+            </tr>
+            <tr>
+              <td class="gap-name">No hooks / webhook delivery</td>
+              <td>A <code>TransitionEvent</code> is recorded on every transition, but nothing ever reads it and sends a notification.</td>
+              <td>Add a small dispatcher that polls undispatched events and calls a registered webhook URL, then flips <code>dispatched</code>.</td>
+            </tr>
+            <tr>
+              <td class="gap-name">Frontend is not data-driven</td>
+              <td>A demo page that hardcodes one workflow's shape can't be pointed at a different workflow.</td>
+              <td>Fetch the definition from <code>GET /workflows/{id}</code> and render whatever states and actions it returns.</td>
+            </tr>
+            <tr>
+              <td class="gap-name">No update / delete endpoints</td>
+              <td>A saved workflow definition can be created and read, but not modified or removed.</td>
+              <td>Add versioning first — new instances use the newest version, running instances keep the version they started on. Add archiving after that.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- PRIORITY / FIX ORDER -->
+    <section class="doc-section" id="priorities">
+      <h2><span class="num">07</span> What "works for anything" should mean, and the fix order</h2>
+      <p>A reusable engine should work for any process that can be represented as states and actions — without needing a Java code change to define a recruiter approval flow instead of a leave request flow. It doesn't need every feature at once: a full user system, notification service, form builder, and scripting language bolted on together makes the engine harder to understand, not more useful.</p>
+
+      <p>The core contract stays small on purpose:</p>
+      <div class="contract-box">
+        Define a workflow <span class="arrow">→</span> create an instance <span class="arrow">→</span> execute an allowed action<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="arrow">→</span> read its current state, data, and history
+      </div>
+
+      <p>Capabilities get added around that core, in this order:</p>
+      <ol class="priority-list">
+        <li>
+          <div>
+            <div class="priority-title">Secure ownership</div>
+            <p>So one integration can never impersonate another. This is the one item that blocks real use — everything else is quality-of-life until this is done.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <div class="priority-title">Verified actor and role checks</div>
+            <p>For actions that require a specific person or role, not just a self-declared header.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <div class="priority-title">Reliable events</div>
+            <p>So an integrating application can actually react to a state change, not just query it after the fact.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <div class="priority-title">Definition versions</div>
+            <p>So workflows can evolve without breaking instances that are already mid-flow on an older version.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <div class="priority-title">Richer conditions</div>
+            <p>Only once a concrete use case actually needs more than a single comparison per transition.</p>
+          </div>
+        </li>
+      </ol>
+
+      <div class="callout"><strong>Generic does not mean the engine knows every business rule.</strong> GIU Nexus decides what "recruiter approved" means and what happens afterward. The engine's job stays fixed: reliably answer "can this instance take this action now, and what state does that put it in?" Fixing the gaps above helps — but authentication and trustworthy permissions are the only ones required before anything else can be called real use.</div>
+    </section>
+
+    <!-- APPLYING ELSEWHERE -->
+    <section class="doc-section" id="applying">
+      <h2><span class="num">08</span> Applying this to any other process</h2>
+      <p class="section-dek">Nothing below requires a code change — only a different <code>POST /workflows</code> body. The same six files that handle "Job Application" handle these too.</p>
+
+      <div class="apply-grid">
+        <div class="apply-card">
+          <div class="apply-domain">Leave requests</div>
+          <span class="apply-states">SUBMITTED → MANAGER_REVIEW → HR_REVIEW → APPROVED</span>
+          <p>A guard on the HR_REVIEW → APPROVED transition could check <code>daysRequested &lt;= 20</code> before allowing it.</p>
+        </div>
+        <div class="apply-card">
+          <div class="apply-domain">Support tickets</div>
+          <span class="apply-states">OPEN → IN_PROGRESS → WAITING_ON_CUSTOMER → RESOLVED</span>
+          <p>A required role of <code>agent</code> on the transitions out of OPEN keeps customers from self-closing tickets.</p>
+        </div>
+        <div class="apply-card">
+          <div class="apply-domain">Order fulfillment</div>
+          <span class="apply-states">PENDING → PAID → SHIPPED → DELIVERED</span>
+          <p>The same shape used in this project's own CreateWorkflowRequest example — no guard or role needed at all.</p>
+        </div>
+        <div class="apply-card">
+          <div class="apply-domain">Content moderation</div>
+          <span class="apply-states">SUBMITTED → UNDER_REVIEW → PUBLISHED / REJECTED</span>
+          <p>Two transitions can share the same fromState and action name if their guards differ — the engine picks the first whose guard matches.</p>
+        </div>
+      </div>
+
+      <p>The pattern to copy each time: define the states and transitions as JSON, decide which transitions need a guard or a required role, and let the existing controller, service, and repository layers do the rest. No new Java class is required unless the process needs a genuinely new capability — like the webhook dispatcher in <a href="#limitations">Known limitations</a>.</p>
+    </section>
+
+    <!-- Q&A LOG -->
+    <section class="doc-section" id="qa-log">
+      <h2><span class="num">09</span> Questions asked along the way</h2>
+      <p class="section-dek">The exchanges that shaped the explanations above, kept as a record of what was asked and how the answer was corrected.</p>
+
+      <div class="qa-item">
+        <div class="qa-question"><span class="q-mark">Q</span> How does the engine know which states to add? Isn't that something it should figure out?</div>
+        <div class="qa-answer">
+          <div class="qa-source">Answered above, in "The core idea"</div>
+          <p>It doesn't figure anything out. Someone defines the workflow first — as a recruiter approval example: states <code>PENDING → LEVEL_1_APPROVED → LEVEL_2_APPROVED → APPROVED</code>, actions <code>approve_1, approve_2, approve_3</code>. That definition arrives as JSON at the workflow creation endpoint. The backend validates and saves it, then creates one instance per recruiter. The engine never invents a step on its own.</p>
+        </div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-question"><span class="q-mark">Q</span> Why use an engine instead of just writing state logic per process?</div>
+        <div class="qa-answer">
+          <div class="qa-source">Answered above, in "Why use an engine at all"</div>
+          <p>Because job applications, recruiter approvals, leave requests, and support tickets all ask the same four questions — current state, allowed next action, who can perform it, what happened before. Writing separate state-changing code for each process duplicates that logic four times. Defining each as data and letting one engine manage progression avoids that.</p>
+        </div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-question"><span class="q-mark">Q</span> Why do those limitations exist, how can they be fixed, and would fixing them even help?</div>
+        <div class="qa-answer">
+          <div class="qa-source">Answered above, in "Known limitations" and "Fix order"</div>
+          <p>They exist because the engine currently implements the core state machine — define, instantiate, transition — while the surrounding trust and integration layer is still incomplete. Fixing them helps, but not equally: authentication and verified permissions are prerequisites for any real deployment. A generic frontend and richer guard conditions are valuable but can wait until a concrete workflow actually needs them. The important distinction: the fixes make the engine trustworthy and reactive, they don't make it need to understand any more business logic than it already does.</p>
+        </div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-question"><span class="q-mark">Q</span> I need this engine to work at anything and to be simple — is that realistic?</div>
+        <div class="qa-answer">
+          <div class="qa-source">Answered above, in "What 'works for anything' should mean"</div>
+          <p>Yes, if "works for anything" is scoped correctly: any process representable as states and actions, defined as data, with no Java change required per process. It should not mean the engine absorbs every possible feature — a full user system, a notification service, a form builder, and a scripting language all at once make it harder to reason about, not more capable. The fix: keep the core contract to define → instantiate → execute → read, and add ownership security, verified roles, events, and versioning around it in that order, only when a real need appears.</p>
+        </div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-question"><span class="q-mark">Q</span> Do I just start reading all the code, or is there a path?</div>
+        <div class="qa-answer">
+          <div class="qa-source">Answered above, in "The reading path"</div>
+          <p>A path, not a top-to-bottom read. Follow one request through the whole stack at a time: how a workflow is defined, how an instance runs, how guards and roles restrict a transition, and how history and events get recorded. Each phase above lists the exact files in the order they hand off to each other.</p>
+        </div>
+      </div>
+
+      <div class="qa-item">
+        <div class="qa-question"><span class="q-mark">Q</span> Can you describe every source file, one line each?</div>
+        <div class="qa-answer">
+          <div class="qa-source">Answered above, folded into the four reading-path phases</div>
+          <p>Every file from <code>config</code>, <code>controller</code>, <code>dto</code>, <code>model</code>, <code>repository</code>, and <code>service</code> is covered — grouped by which phase of the request lifecycle it belongs to, rather than as one flat alphabetical list, since that's the order that actually explains why each file exists.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- READ ALOUD ENGINE — a fully separate project, documented here
+         side by side with the workflow engine, but sharing no code,
+         folder, or dependency with it. -->
+    <section class="doc-section" id="read-aloud-engine">
+      <h2><span class="num">10</span> A separate project: the Read Aloud Engine</h2>
+      <p class="section-dek">Every read-aloud button on this page and on the source listing is powered by a second, fully independent project — not a feature bolted onto the workflow engine's own code.</p>
+
+      <div class="callout"><strong>This is not part of the workflow engine.</strong> It lives in its own folder, <code>read-aloud-engine/</code>, sitting beside <code>mini-workflow-engine/</code> rather than inside it. It has no imports, no references, and no shared files with the Java project. It doesn't know what a workflow, a state, or a transition is — it only knows how to speak a list of text chunks out loud. The two projects are documented together on this page purely for convenience, side by side, not because they depend on each other.</p></div>
+
+      <h3>What it does</h3>
+      <p>It's a small JavaScript library that wraps the browser's built-in speech synthesis (the Web Speech API) so any page can offer a "read this aloud" button. Give it a list of chunks — paragraphs, sentences, lines of code, list items, anything — and it speaks them one at a time, highlighting and auto-scrolling to whichever one is currently playing.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>File</th><th>Role</th></tr></thead>
+          <tbody>
+            <tr><td class="gap-name">read-aloud-engine.js</td><td>The core engine. No DOM opinions, no CSS, no dependencies — just play, pause, stop, and voice selection over a list of chunks.</td></tr>
+            <tr><td class="gap-name">read-aloud-voice-picker.js</td><td>An optional dropdown UI for choosing a voice, built on top of the core engine. A page that wants its own voice-picker design never has to load this file.</td></tr>
+            <tr><td class="gap-name">read-aloud-engine.css</td><td>An optional, neutral default stylesheet. Entirely skippable if a page wants to style the active-chunk highlight itself.</td></tr>
+            <tr><td class="gap-name">demo/index.html</td><td>A plain page with nothing but paragraphs, proving the engine works on any content, not just code.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>How this page uses it</h3>
+      <p>Both this documentation page and the full source listing load the same two engine files as an ordinary external script — the same way a completely unrelated website would. Neither page's own code contains any speech logic; they only call the engine's public functions:</p>
+      <div class="contract-box">
+        const engine = ReadAloudEngine.create();<br>
+        engine.speak(chunks, &#123; onChunkStart, onChunkEnd, onDone &#125;);<br>
+        engine.stop();
+      </div>
+      <p>On the source listing, a "chunk" is one line of code. On this page, a "chunk" is one paragraph or list item inside a section. The engine doesn't distinguish between the two — that mapping is entirely up to the page using it.</p>
+
+      <h3>Voice selection</h3>
+      <p>The engine ranks whatever voices the visitor's own browser reports, biased toward known natural-sounding female voices (for example Google's, Microsoft's Aria/Jenny, or macOS's Samantha/Victoria), and picks the best match automatically. Exactly which voices exist is entirely up to the visitor's operating system and browser — this library cannot add voices that aren't already installed. Double-clicking any read-aloud button opens a picker to override the automatic choice, and that choice is remembered for next time.</p>
+
+      <h3>Using it on another website</h3>
+      <p>Nothing about it assumes this project's markup, styling, or content. To add it elsewhere:</p>
+      <ol style="color:var(--ink-soft); font-size:15px; padding-left:20px; margin:0 0 14px;">
+        <li>Copy <code>read-aloud-engine.js</code> (and optionally the voice picker and CSS) into the target site — no build step or package manager required.</li>
+        <li>Decide what counts as a "chunk" for that page's content: a paragraph, a sentence, a table row, a line of code.</li>
+        <li>Wire a button to call <code>engine.speak(chunks, callbacks)</code> with those chunks.</li>
+        <li>Optionally use the <code>onChunkStart</code> / <code>onChunkEnd</code> callbacks to highlight the active chunk and scroll it into view.</li>
+      </ol>
+      <p>The full API — every method, every option, and the browser-support caveats — is documented in the engine's own <code>README.md</code>, which travels with the project's files.</p>
+    </section>
+
+    <!-- ARTHUR — a third, fully separate project. Shares no code or
+         folder with either the workflow engine or the read-aloud
+         engine; the two projects are linked only by the fact that
+         Arthur's optional read-aloud button uses ReadAloudEngine when
+         it happens to already be on the same page. -->
+    <section class="doc-section" id="arthur-engine">
+      <h2><span class="num">11</span> A third project: Arthur, the page chatbot</h2>
+      <p class="section-dek">The chat bubble in the bottom-right corner of this page is also its own standalone project, not a feature of the workflow engine's code.</p>
+
+      <div class="callout"><strong>Arthur is not part of the workflow engine, and not part of the Read Aloud Engine either.</strong> It lives in its own folder, <code>arthur-chat-engine/</code>, beside both other projects. It has no knowledge of workflows, states, or transitions built into it — it only knows how to index whatever text a page gives it and find the most relevant passage for a question.</p></div>
+
+      <h3>How Arthur actually answers</h3>
+      <p>Arthur is a <strong>local keyword-search engine with a bounded personality</strong>, not a large language model, and runs entirely in the visitor's browser with no server, no API key, and no web access. When this page loads, it feeds Arthur every heading and paragraph on the page. When someone asks a question, Arthur first checks whether it's small talk or a question about himself; if not, he checks whether it's clearly off-topic; only then does he score every indexed passage by how many meaningful words — including synonyms — it shares with the question, favoring headings, and return the best match.</p>
+      <p>That has real limits, stated plainly: Arthur cannot generate a new sentence beyond his small-talk replies, cannot reason across passages the way a real conversational model can, cannot browse the web, and can only answer document questions this page actually addresses somewhere in its text. Ask him something the page never covers and he says so, rather than guessing — and ask him something clearly unrelated to the document, and he declines in character instead of trying to answer from general knowledge he doesn't actually have.</p>
+
+      <h3>Small talk and staying on topic</h3>
+      <p>Say hi, and Arthur says hi back. Ask "who are you" or "what can you do," and he answers honestly, in his own voice, without pretending to be a general-purpose assistant. Ask him something with no connection to this document at all — general trivia, current events, or anything on a small built-in list of clearly out-of-scope subjects — and he declines, by design:</p>
+      <div class="contract-box">
+        You: "hi"<br>
+        Arthur: "Hey! I'm Arthur. Ask me anything about this workflow engine…"<br><br>
+        You: "tell me about nuclear weapons"<br>
+        Arthur: "I'm built specifically to answer questions about this workflow engine and about myself — I won't get into that."
+      </div>
+      <p>This boundary is implemented as two small, inspectable pieces in <code>arthur.js</code>: a handful of regular expressions that recognize greetings, thanks, and questions about Arthur himself before any document search runs, and a short blocklist of clearly unrelated subjects (weapons, politics, celebrities, recipes, and the like) checked before falling back to search. A question that shares no vocabulary with the document at all — but isn't on that blocklist — still gets an honest "I couldn't find anything about that" rather than a refusal, since Arthur isn't trying to police every possible topic, only the ones a visitor might plausibly test him with.</p>
+
+      <h3>Understanding abbreviations and slang</h3>
+      <p>Before anything else runs, Arthur expands a fixed table of shorthand people actually type: "u" becomes "you", "r" becomes "are", "ngl" becomes "not gonna lie", "wsp" becomes "what's up", "hru" becomes "how are you", and so on. So "who r u" is understood exactly like "who are you", and a question like "ngl what do guards do" still finds the right passage. This is a lookup table, not language understanding — it only recognizes the specific shorthand it's been given.</p>
+
+      <h3>Talking to Arthur in other languages</h3>
+      <p>Arthur can also recognize and reply to greetings, thanks, farewells, and "who are you" in Spanish, French, German, Arabic, Hindi, and Chinese, each with hand-written replies in that language:</p>
+      <div class="contract-box">
+        You: "hola"<br>
+        Arthur: "¡Hola! Soy Arthur. Pregúntame lo que quieras sobre this workflow engine."<br><br>
+        You: "qui es-tu"<br>
+        Arthur: "Je suis Arthur, un assistant local pour this workflow engine…"
+      </div>
+      <div class="callout"><strong>This is small talk, not translation.</strong> Arthur has no language model and cannot translate this documentation's actual content. A Spanish or French greeting gets a warm reply in that language, but a real question about how guards or transitions work still gets answered from this page's English text — Arthur says so honestly rather than pretending to fully understand every language.</div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>File</th><th>Role</th></tr></thead>
+          <tbody>
+            <tr><td class="gap-name">arthur.js</td><td>The core engine: indexing and keyword search. No DOM opinions, no chat UI, no dependencies.</td></tr>
+            <tr><td class="gap-name">arthur-widget.js</td><td>The optional floating chat bubble, message thread, and input box, built on top of the core engine.</td></tr>
+            <tr><td class="gap-name">arthur-widget.css</td><td>An optional default stylesheet for the widget. Entirely skippable if a page wants its own chat design.</td></tr>
+            <tr><td class="gap-name">demo/index.html</td><td>A plain page about a fictional coffee shop, proving Arthur works on any content, not just documentation.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Copy, read aloud, and "show me in the page"</h3>
+      <p>Every answer Arthur gives has a <strong>Copy</strong> button, the same pattern used throughout this documentation and the source listing. If the separate Read Aloud Engine is also loaded on the page — which it is here — each answer also gets a <strong>Read aloud</strong> button, so an answer can be heard instead of read. This integration is optional and detected at runtime: Arthur works completely on its own if that other project isn't present. Answers also include a "Show me in the page" link that scrolls to and briefly highlights the passage the answer came from, so a reader can verify Arthur's answer against the source.</p>
+
+      <h3>Using it on another website</h3>
+      <p>Nothing about Arthur assumes this project's subject matter. To add it elsewhere:</p>
+      <ol style="color:var(--ink-soft); font-size:15px; padding-left:20px; margin:0 0 14px;">
+        <li>Copy <code>arthur.js</code> (and optionally the widget files) into the target site.</li>
+        <li>Call <code>arthur.index(...)</code> with the page's own headings and paragraphs once it has loaded.</li>
+        <li>Mount the included chat widget, or call <code>arthur.ask(question)</code> from a custom interface.</li>
+      </ol>
+      <p>The full API, including the confidence score and the "why keyword search, not a real AI" reasoning behind Arthur's design, is documented in its own <code>README.md</code>, which travels with the project's files.</p>
+    </section>
+
+    <!-- LET'S CONNECT -->
+    <section class="doc-section" id="lets-connect">
+      <h2><span class="num">12</span> Let's Connect</h2>
+      <p class="section-dek">This documentation is public. The source code is private and available on request.</p>
+
+      <div class="connect-grid">
+        <a class="connect-card" href="mailto:mohamedahmedmaxx1@gmail.com?subject=Workflow%20engine%20source%20access%20request">
+          <div class="connect-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z" opacity="0"/><path d="M22 6l-10 7L2 6"/><rect x="2" y="4" width="20" height="16" rx="2"/></svg>
+          </div>
+          <div class="connect-text">
+            <div class="connect-title">Request source access</div>
+            <div class="connect-sub">mohamedahmedmaxx1@gmail.com</div>
+          </div>
+        </a>
+
+        <a class="connect-card" href="https://github.com/MeedoAhmedd" target="_blank" rel="noopener">
+          <div class="connect-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.09 3.29 9.4 7.86 10.93.57.1.78-.25.78-.55 0-.27-.01-1.16-.02-2.11-3.2.7-3.87-1.36-3.87-1.36-.53-1.33-1.29-1.69-1.29-1.69-1.05-.72.08-.7.08-.7 1.17.08 1.78 1.2 1.78 1.2 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.55-.29-5.23-1.28-5.23-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.79 0c2.21-1.49 3.18-1.18 3.18-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.69 5.38-5.25 5.67.42.36.78 1.08.78 2.17 0 1.57-.01 2.83-.01 3.22 0 .3.2.66.79.55A10.98 10.98 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z"/></svg>
+          </div>
+          <div class="connect-text">
+            <div class="connect-title">GitHub</div>
+            <div class="connect-sub">github.com/MeedoAhmedd</div>
+          </div>
+        </a>
+      </div>
+
+      <div class="callout"><strong>The source repository is private.</strong> Email the address above with what you'd like to see it for, and you'll be added as a collaborator on the private repository.</div>
+    </section>
+  </main>
+</div>
+
+<button class="back-to-top" id="backToTop" aria-label="Back to top">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+</button>
+
+<script>
+(function () {
+  // Theme toggle
+  var themeButtons = document.querySelectorAll('[data-theme-choice]');
+  function applyTheme(choice) {
+    if (choice === 'system') {
+      document.documentElement.removeAttribute('data-theme');
+    } else {
+      document.documentElement.setAttribute('data-theme', choice);
+    }
+    themeButtons.forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-theme-choice') === choice);
+    });
+    try { localStorage.setItem('mwe-docs-theme', choice); } catch (e) {}
+  }
+  themeButtons.forEach(function (b) {
+    b.addEventListener('click', function () { applyTheme(b.getAttribute('data-theme-choice')); });
+  });
+  var savedTheme = 'system';
+  try { savedTheme = localStorage.getItem('mwe-docs-theme') || 'system'; } catch (e) {}
+  applyTheme(savedTheme);
+
+  // Mobile TOC toggle
+  var tocToggle = document.getElementById('tocToggle');
+  var tocNav = document.getElementById('tocNav');
+  tocToggle.addEventListener('click', function () {
+    var open = tocNav.classList.toggle('open');
+    tocToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+
+  document.querySelectorAll('#tocList a').forEach(function (link) {
+    link.addEventListener('click', function () {
+      if (window.matchMedia('(max-width: 900px)').matches) {
+        tocNav.classList.remove('open');
+        tocToggle.setAttribute('aria-expanded', 'false');
+      }
+    });
+  });
+
+  // Active section highlighting via IntersectionObserver
+  var sections = Array.prototype.slice.call(document.querySelectorAll('section.doc-section[id]'));
+  var links = document.querySelectorAll('#tocList a');
+  function setActive(id) {
+    links.forEach(function (l) {
+      l.classList.toggle('active', l.getAttribute('href') === '#' + id);
+    });
+  }
+  if ('IntersectionObserver' in window) {
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) setActive(entry.target.id);
+      });
+    }, { rootMargin: '-15% 0px -70% 0px' });
+    sections.forEach(function (s) { observer.observe(s); });
+  }
+
+  // Back to top
+  var backToTop = document.getElementById('backToTop');
+  window.addEventListener('scroll', function () {
+    backToTop.classList.toggle('visible', window.scrollY > 600);
+  }, { passive: true });
+  backToTop.addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  // -----------------------------------------------------------------
+  // Read-aloud adapter: this page does NOT contain the speech logic
+  // itself. It loads the standalone Read Aloud Engine (a separate
+  // project — see section 10, "A separate project: the Read Aloud
+  // Engine") and just wires one button per section to it.
+  // -----------------------------------------------------------------
+  (function () {
+    if (typeof ReadAloudEngine === 'undefined') return;
+
+    var engine = ReadAloudEngine.create();
+    var picker = (typeof ReadAloudVoicePicker !== 'undefined')
+      ? ReadAloudVoicePicker.attach(engine, { className: 'voice-picker' })
+      : null;
+
+    var activeBtn = null;
+
+    function setBtnSpeaking(btn, speaking) {
+      btn.classList.toggle('speaking', speaking);
+      var label = btn.querySelector('.section-speak-label, .phase-speak-label');
+      if (label) label.textContent = speaking ? 'Stop' : 'Read aloud';
+    }
+
+    function stopActive() {
+      engine.stop();
+      if (activeBtn) setBtnSpeaking(activeBtn, false);
+      activeBtn = null;
+    }
+
+    // Collects the readable text nodes inside one <section class="doc-section">:
+    // its lede/section-dek paragraphs, ordinary <p> and <li> elements, callouts,
+    // Q&A entries, and table cells with real prose — skipping code and
+    // decorative elements that would read awkwardly aloud.
+    function collectChunks(section) {
+      var selector = [
+        '> p', '.section-dek', '.lede', '.callout', '.file-entry p',
+        '.phase-title', '.priority-title', '.priority-list p',
+        '.qa-question', '.qa-answer p', '.apply-domain', '.apply-card p',
+        'h3', 'li'
+      ].join(', ');
+      var nodes = Array.prototype.slice.call(section.querySelectorAll(selector));
+      // Drop nodes nested inside another already-included node's container
+      // (e.g. a <p> inside .qa-answer is already covered by '.qa-answer p').
+      return nodes.filter(function (el) {
+        return el.textContent && el.textContent.trim().length > 0;
+      });
+    }
+
+    // Builds one speak button and wires it to read `getChunks()` (computed
+    // lazily at click time, so DOM changes before playback are picked up).
+    // Shared by both the section-level button and the compact per-phase
+    // button so their click/keyboard/voice-picker behavior stays identical.
+    function makeSpeakButton(className, labelClass, getChunks) {
+      var btn = document.createElement('button');
+      btn.className = className;
+      btn.setAttribute('data-voice-picker-trigger', 'true');
+      btn.title = 'Click to read this aloud, double-click to choose a voice';
+      btn.innerHTML =
+        '<svg class="icon-play" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/></svg>' +
+        '<svg class="icon-stop" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5" fill="currentColor" stroke="none"/></svg>' +
+        '<span class="' + labelClass + '">Read aloud</span>';
+
+      if (!engine.isSupported()) {
+        btn.disabled = true;
+        btn.title = 'Read-aloud is not supported in this browser';
+        btn.querySelector('.' + labelClass).textContent = 'Unavailable';
+        return btn;
+      }
+
+      btn.addEventListener('click', function () {
+        if (activeBtn === btn) {
+          stopActive();
+          return;
+        }
+        stopActive();
+        var chunks = getChunks();
+        if (!chunks.length) return;
+        activeBtn = btn;
+        setBtnSpeaking(btn, true);
+        engine.speak(chunks, {
+          onChunkStart: function (el) {
+            if (el) el.classList.add('doc-chunk-active');
+          },
+          onChunkEnd: function (el) {
+            if (el) el.classList.remove('doc-chunk-active');
+          },
+          onDone: function () { stopActive(); },
+          onStop: function () { stopActive(); }
+        });
+      });
+
+      if (picker) {
+        btn.addEventListener('dblclick', function (e) {
+          e.preventDefault();
+          picker.openNear(btn);
+        });
+      }
+
+      return btn;
+    }
+
+    function injectButtons() {
+      document.querySelectorAll('section.doc-section').forEach(function (section) {
+        var h2 = section.querySelector('h2');
+        if (!h2) return;
+
+        var phaseHeaders = section.querySelectorAll('.phase-header');
+
+        if (phaseHeaders.length > 0) {
+          // A section built from one or more numbered phases (the reading
+          // path): give each phase its own compact button instead of one
+          // button for the whole section, so a reader can jump straight to
+          // phase 3 or 4 without hearing 1 and 2 first.
+          phaseHeaders.forEach(function (header) {
+            if (header.querySelector('.phase-speak-btn')) return;
+            var phaseGroup = header.closest('.phase-group');
+            var btn = makeSpeakButton('phase-speak-btn', 'phase-speak-label', function () {
+              return collectChunks(phaseGroup || section);
+            });
+            btn.title = 'Click to read this phase aloud, double-click to choose a voice';
+            header.appendChild(btn);
+          });
+          return;
+        }
+
+        if (h2.querySelector('.section-speak-btn')) return;
+        var sectionBtn = makeSpeakButton('section-speak-btn', 'section-speak-label', function () {
+          return collectChunks(section);
+        });
+        h2.appendChild(sectionBtn);
+      });
+    }
+
+    injectButtons();
+    window.addEventListener('beforeunload', stopActive);
+  })();
+
+  // -----------------------------------------------------------------
+  // Arthur adapter: this page does NOT contain the chatbot logic
+  // itself. It loads the standalone Arthur engine and chat widget (a
+  // separate project — see section 11, "A third project: Arthur, the
+  // page chatbot") and just feeds it this page's own content.
+  // -----------------------------------------------------------------
+  (function () {
+    if (typeof Arthur === 'undefined' || typeof ArthurWidget === 'undefined') return;
+
+    var arthur = Arthur.create({
+      name: 'Arthur',
+      subject: 'this workflow engine',
+      offTopicMessage: "I'm built to answer questions about this workflow engine and its documentation, not general topics. Ask me something about how it works, its code, or its limitations instead.",
+      summary: "This page documents a mini workflow engine: a backend that lets an application define a process as states and transitions, then create running instances of it and move them forward one allowed action at a time. It covers the core idea, a diagram of the request lifecycle, a four-part reading path through the actual Java source (defining a workflow, running an instance, guards and roles, and history/events), the known limitations and how to fix them, and how the same engine could run a completely different process like leave requests or support tickets. It also documents two other small standalone tools built alongside it: the Read Aloud Engine powering every speaker button on this page, and me."
+    });
+
+    // Index every heading and paragraph inside the actual documentation
+    // content, skipping the sidebar/nav/chrome around it.
+    var indexable = document.querySelectorAll(
+      '.main h1, .main h2, .main h3, .main p, .main li, ' +
+      '.main .file-entry .file-name, .main .file-entry p, ' +
+      '.main .qa-question, .main .qa-answer p, ' +
+      '.main .apply-domain, .main .apply-card p, ' +
+      '.main .priority-title, .main .priority-list p, ' +
+      '.main td'
+    );
+    arthur.index(indexable);
+
+    ArthurWidget.mount(arthur, {
+      greeting: "Hi, I'm Arthur. Ask me anything about how this workflow engine works — for example, \"how do guards work\" or \"what are the known limitations\".",
+      avatarLabel: 'A',
+      readAloud: true
+    });
+  })();
+})();
+</script>
+</body>
+</html>
