@@ -1,5 +1,5 @@
 /*!
- * Read Aloud Engine — v1.2.0
+ * Read Aloud Engine — v1.3.0
  * A tiny, dependency-free wrapper around the browser's built-in
  * SpeechSynthesis API (Web Speech API). Speaks a target element's
  * content one "chunk" at a time (lines, sentences, or whatever the
@@ -27,8 +27,18 @@
  * with nothing else referencing it can be garbage-collected mid-speech,
  * which silently cuts the audio short or drops onend/onerror entirely.
  * speakNext() now keeps a reference to the in-flight utterance on the
- * engine's own state for as long as it's speaking. See speakNext() below
- * for the full explanation.
+ * engine's own state for as long as it's speaking.
+ *
+ * v1.3.0 fixes a third bug, this one introduced by the v1.1.0 fix itself:
+ * always deferring the first speak() call through setTimeout (to dodge
+ * the cancel()+speak() race) meant EVERY call — including a reader's very
+ * first click with nothing else playing — happened outside the original
+ * click's call stack. Some browsers only honor speechSynthesis.speak()
+ * when it's invoked synchronously inside a trusted user-gesture handler,
+ * so that deferral could make speech silently do nothing on a fresh
+ * click. speak() now only defers when something was actually mid-speech
+ * and needs to settle; a fresh click speaks synchronously instead. See
+ * speak() below for the full explanation.
  *
  * ---------------------------------------------------------------
  * Quick start
@@ -325,6 +335,11 @@
      */
     function speak(chunks, callbacks) {
       if (!supported) return false;
+
+      // Whether anything was actually mid-speech before this call is what
+      // decides whether cancel()+speak() needs to be split across a tick
+      // (see below) — checked BEFORE stop() resets synth's own queue.
+      var interruptingActiveSpeech = synth.speaking || synth.pending || state.speaking;
       stop();
 
       state.elements = chunks.map(function (c) {
@@ -338,6 +353,21 @@
       state.callbacks = callbacks || {};
       startKeepAlive();
 
+      if (!interruptingActiveSpeech) {
+        // Nothing was playing, so stop()'s cancel() had nothing to settle —
+        // call speakNext() synchronously, in the SAME call stack as the
+        // click that triggered this. Some browsers only honor
+        // speechSynthesis.speak() when it's called directly inside a
+        // trusted user-gesture handler; routing it through a setTimeout
+        // (even 0ms) can make that browser silently refuse to speak at
+        // all, which is its own "button does nothing" bug distinct from
+        // the one below. This is the common case — a reader's first click
+        // on a page, or clicking a different section after the previous
+        // one already finished on its own.
+        speakNext();
+        return true;
+      }
+
       // Deliberately deferred to the next tick rather than called
       // synchronously here. Chrome/Edge have a long-standing bug where
       // calling speechSynthesis.cancel() (inside stop(), just above)
@@ -345,8 +375,10 @@
       // synchronous frame silently drops the new utterance — no error,
       // no event, it just never speaks. Letting cancel() fully settle
       // on the event loop before the first speak() call is the
-      // documented workaround, and it's the actual root cause of "the
-      // button does nothing" reported against this engine.
+      // documented workaround. This path only runs when something was
+      // actually interrupted (e.g. clicking a new section while another
+      // is still reading), since that's the only case where cancel() has
+      // anything to settle.
       setTimeout(function () {
         // A stop() called in the interim (double-click, navigating
         // away) already reset state.speaking — don't resurrect it.
@@ -371,5 +403,5 @@
     };
   }
 
-  return { create: create, VERSION: '1.2.0' };
+  return { create: create, VERSION: '1.3.0' };
 });
