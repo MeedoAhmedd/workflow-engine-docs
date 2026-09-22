@@ -1,5 +1,5 @@
 /*!
- * Read Aloud Engine — v1.1.0
+ * Read Aloud Engine — v1.2.0
  * A tiny, dependency-free wrapper around the browser's built-in
  * SpeechSynthesis API (Web Speech API). Speaks a target element's
  * content one "chunk" at a time (lines, sentences, or whatever the
@@ -16,13 +16,19 @@
  * support SpeechSynthesis at all. Always check `.isSupported()`
  * before wiring up UI that assumes speech works.
  *
- * v1.1.0 fixes a real Chrome/Edge bug where calling speak() right
+ * v1.1.0 fixed a real Chrome/Edge bug where calling speak() right
  * after cancel() in the same synchronous tick silently dropped the
  * new utterance — no error, no event, just a button that appears to
  * do nothing. speak() now defers its first utterance to the next
  * tick, and a periodic pause()/resume() keeps Chrome from suspending
- * long speech after ~15 seconds. See speak() below for the full
- * explanation.
+ * long speech after ~15 seconds.
+ *
+ * v1.2.0 fixes a second, independent Chrome bug: a SpeechSynthesisUtterance
+ * with nothing else referencing it can be garbage-collected mid-speech,
+ * which silently cuts the audio short or drops onend/onerror entirely.
+ * speakNext() now keeps a reference to the in-flight utterance on the
+ * engine's own state for as long as it's speaking. See speakNext() below
+ * for the full explanation.
  *
  * ---------------------------------------------------------------
  * Quick start
@@ -139,7 +145,8 @@
       index: 0,
       speaking: false,
       voice: null,
-      callbacks: {}
+      callbacks: {},
+      currentUtterance: null
     };
 
     function isSupported() {
@@ -236,6 +243,7 @@
       state.chunks = [];
       state.elements = [];
       state.index = 0;
+      state.currentUtterance = null;
       if (wasSpeaking && state.callbacks.onStop) state.callbacks.onStop();
     }
 
@@ -284,13 +292,21 @@
       utter.rate = rate;
       utter.pitch = pitch;
       utter.onend = function () {
+        state.currentUtterance = null;
         if (state.callbacks.onChunkEnd) state.callbacks.onChunkEnd(el, currentIndex);
         speakNext();
       };
       utter.onerror = function () {
+        state.currentUtterance = null;
         if (state.callbacks.onChunkEnd) state.callbacks.onChunkEnd(el, currentIndex);
         speakNext();
       };
+      // Chrome garbage-collects a SpeechSynthesisUtterance that nothing
+      // else references, which can silently cut speech short or drop
+      // onend/onerror entirely — a real, separate bug from the
+      // cancel()+speak() race fixed above. Keeping a reference on state
+      // for the utterance's lifetime prevents that.
+      state.currentUtterance = utter;
       synth.speak(utter);
     }
 
@@ -355,5 +371,5 @@
     };
   }
 
-  return { create: create, VERSION: '1.1.0' };
+  return { create: create, VERSION: '1.2.0' };
 });

@@ -353,16 +353,20 @@
     how_are_you: /\b(how\s?are\s?you|how'?s\s?it\s?going|you\s?good|you\s?ok)\b/i,
     about_self: /\b(who\s?are\s?you|what\s?are\s?you|what'?s\s?your\s?name|tell\s?me\s?about\s?yourself)\b/i,
     capabilities: /\b(what\s?can\s?you\s?(do|answer|help)|what\s?do\s?you\s?know|how\s?do\s?you\s?work|how\s?were\s?you\s?(made|built)|are\s?you\s?(a\s?)?(real\s?)?(ai|robot|bot|human))\b/i,
-    // "what is this", "whats this all", "what's this about", "what does
+    // "what is this", "whats this all", "what's this about", "whats this
+    // document/page/site", "what is this document about", "what does
     // this do", "give me a summary", "tl;dr" — the single most obvious
     // thing a visitor asks a docs chatbot, and the one intent v1.1 was
     // missing entirely. Kept separate from about_self: this asks about
     // the SUBJECT (the page), not about Arthur. Checked only against
     // short, vague phrasings — "explain how X" style specific questions
-    // fall through to search. The trailing "(all|about|going on)?" is
-    // deliberately loose so filler words after "this" don't break the
-    // match, since real visitors type "whats this all" without "about".
-    summary: /^\s*(what'?s?\s?is\s?this|what'?s\s?this\b(\s?(all|about|going\s?on))?|what\s?does\s?this\s?(do|cover)|(give\s?me\s?a\s?)?(quick\s?)?summary|summarize\s?(this|it)?|tl;?dr|explain\s?this\s?(to\s?me)?)\s*[?.!]*\s*$/i
+    // fall through to search. The optional noun group ("document",
+    // "page", "site"...) and the optional trailing filler group ("all",
+    // "about", "going on") are independent and both optional, so any
+    // combination — "whats this", "whats this document", "whats this
+    // document about" — matches, instead of only the exact phrasing v1.1
+    // happened to test.
+    summary: /^\s*(what'?s?\s?is\s?this|what'?s\s?this)(\s?(document|page|site|engine|project|thing))?(\s?(all|about|going\s?on))?\s*[?.!]*\s*$|^\s*(what\s?does\s?this\s?(do|cover)|(give\s?me\s?a\s?)?(quick\s?)?summary|summarize\s?(this|it)?|tl;?dr|explain\s?this\s?(to\s?me)?)\s*[?.!]*\s*$/i
   };
 
   // Words that unambiguously signal a question is NOT about this page
@@ -775,5 +779,5 @@
     };
   }
 
-  return { create: create, VERSION: '1.2.0' };
+  return { create: create, VERSION: '1.3.0' };
 });

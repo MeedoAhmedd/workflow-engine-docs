@@ -47,6 +47,15 @@
   overflow: hidden;
 }
 
+/* The [hidden] attribute's default UA-stylesheet "display: none" loses to
+   the class rule above (a class selector always outranks the plain
+   attribute default), so without this explicit override the panel stays
+   visually open even after JS sets panel.hidden = true — the "can't close
+   Arthur" bug. */
+.arthur-panel[hidden] {
+  display: none;
+}
+
 .arthur-panel-header {
   display: flex;
   align-items: center;
