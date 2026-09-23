@@ -1647,7 +1647,7 @@
     // decorative elements that would read awkwardly aloud.
     function collectChunks(section) {
       var selector = [
-        '> p', '.section-dek', '.lede', '.callout', '.file-entry p',
+        ':scope > p', '.section-dek', '.lede', '.callout', '.file-entry p',
         '.phase-title', '.priority-title', '.priority-list p',
         '.qa-question', '.qa-answer p', '.apply-domain', '.apply-card p',
         'h3', 'li'
